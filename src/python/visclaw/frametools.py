@@ -1420,23 +1420,32 @@ def only_most_recent(framenos,outdir='.',verbose=True):
     mtime = 0
     framekeys = fortfile.keys()
     framekeys.sort()
-    for frameno in framekeys:
-        mtimeprev = mtime
-        mtime = os.path.getmtime(fortfile[frameno])
-        # sometimes later fort files are closed a few seconds after
-        # earlier ones, so include a possible delaytime:
-        delaytime = 5  # seconds
-        if mtime < mtimeprev-delaytime:
-            break
-        numframes = numframes + 1
 
-    newframes = framekeys[:numframes]
-    if (numframes < len(framekeys)) & verbose:
-        print '*** Frames %s and above appear to be from an old run' \
-                       % framekeys[numframes]
-        print '***    and will be ignored.'
-        time.sleep(2)
+    # Having issues with frames being marked as 'old'.  Could just increase
+    # delay time, but since all output files are deleted at the beginning of 
+    # each run, I remove this check -- cvogl 7/24
+    newframes = framekeys
 
+#    for frameno in framekeys:
+#        mtimeprev = mtime
+#        mtime = os.path.getmtime(fortfile[frameno])
+#        # sometimes later fort files are closed a few seconds after
+#        # earlier ones, so include a possible delaytime:
+#        delaytime = 5  # seconds
+#        if mtime < mtimeprev-delaytime:
+#            break
+#        numframes = numframes + 1
+
+#    newframes = framekeys[:numframes]
+#    if (numframes < len(framekeys)) & verbose:
+#        print '*** Frames %s and above appear to be from an old run' \
+#                       % framekeys[numframes]
+#        print '***    and will be ignored.'
+#        time.sleep(2)
+
+    newframes = framekeys
+
+    
     #print 'framenos = ',framenos
     if framenos == 'all':
         framenos = newframes
