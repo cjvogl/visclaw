@@ -1415,27 +1415,35 @@ def only_most_recent(framenos,outdir='.',verbose=True):
         framenos = []
         return framenos
 
-    # Figure out which files are from latest run:
-    numframes = 0
-    mtime = 0
-    framekeys = fortfile.keys()
-    framekeys.sort()
-    for frameno in framekeys:
-        mtimeprev = mtime
-        mtime = os.path.getmtime(fortfile[frameno])
-        # sometimes later fort files are closed a few seconds after
-        # earlier ones, so include a possible delaytime:
-        delaytime = 5  # seconds
-        if mtime < mtimeprev-delaytime:
-            break
-        numframes = numframes + 1
+# Causing problems and thus commented out by cjvogl
 
-    newframes = framekeys[:numframes]
-    if (numframes < len(framekeys)) & verbose:
-        print '*** Frames %s and above appear to be from an old run' \
-                       % framekeys[numframes]
-        print '***    and will be ignored.'
-        time.sleep(2)
+#    # Figure out which files are from latest run:
+#    numframes = 0
+#    mtime = 0
+#    framekeys = fortfile.keys()
+#    framekeys.sort()
+#    for frameno in framekeys:
+#        mtimeprev = mtime
+#        mtime = os.path.getmtime(fortfile[frameno])
+#        # sometimes later fort files are closed a few seconds after
+#        # earlier ones, so include a possible delaytime:
+#        delaytime = 5  # seconds
+#        if mtime < mtimeprev-delaytime:
+#            break
+#        numframes = numframes + 1
+#
+#    newframes = framekeys[:numframes]   
+#
+#    if (numframes < len(framekeys)) & verbose:
+#        print '*** Frames %s and above appear to be from an old run' \
+#                       % framekeys[numframes]
+#        print '***    and will be ignored.'
+#        time.sleep(2)
+
+# Want all frames marked as "new" ... cjvogl
+    newframes = fortfile.keys()
+    newframes.sort()
+
 
     #print 'framenos = ',framenos
     if framenos == 'all':
