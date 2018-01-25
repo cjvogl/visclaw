@@ -5,14 +5,33 @@ Module frametools for plotting frames of time-dependent data.
 
 from __future__ import absolute_import
 from __future__ import print_function
-import os,sys
+import os
+import sys
 import traceback
-import numpy as np
-import matplotlib.pyplot as plt
+import glob
+import time
+import types
 
-import clawpack.clawutil.data as clawdata
 import six
 from six.moves import input
+# "reload" is only available from a module in Python 3.
+if sys.version_info[0] >= 3:
+    if sys.version_info[1] >= 4:
+        from importlib import reload
+    else:
+        from imp import reload
+
+import clawpack.clawutil.data as clawdata
+from clawpack.visclaw.data import ClawPlotData
+from clawpack.visclaw import setplot_default
+from clawpack.pyclaw import Solution
+
+import numpy as np
+import matplotlib.pyplot as plt
+from numpy import ma
+from clawpack.visclaw import colormaps
+from matplotlib.colors import Normalize
+
 
 
 #==============================================================================
@@ -33,7 +52,6 @@ def plotframe(frameno, plotdata, verbose=False, simple=False, refresh=False):
 
     if simple:
         plotfun = plotdata.setplot
-        from clawpack.pyclaw import Solution
         sol = Solution(frameno,path=plotdata.outdir,file_format=plotdata.format)
         plotfun(sol)
         return
@@ -161,7 +179,6 @@ def plot_frame(framesolns,plotdata,frameno=0,verbose=False):
             axescmd = getattr(plotaxes,'axescmd','subplot(1,1,1)')
             axescmd = 'plotaxes._handle = plt.%s' % axescmd
             exec(axescmd)
-            plt.hold(True)
 
             current_data.plotaxes = plotaxes
             current_data.plotfigure = plotaxes._plotfigure
@@ -272,7 +289,6 @@ def plot_frame(framesolns,plotdata,frameno=0,verbose=False):
                             show_this_level = amr_data_show[j]
                         else:
                             show_this_level = True
-                        #import pdb; pdb.set_trace()
 
                         if plotitem._show and show_this_level:
                             if num_dim == 1:
@@ -493,7 +509,8 @@ def plotitem1(framesoln, plotitem, current_data, stateno):
         xc_centers = None
         xc_edges = None
 
-    elif pp['plot_type'] in ['1d_plot', '1d_semilogy', '1d_fill_between', '1d_empty','1d_from_2d_data']:
+    elif pp['plot_type'] in ['1d_plot', '1d_semilogy', '1d_fill_between',
+            '1d_empty','1d_from_2d_data', '1d_pwconst']:
         var = get_var(state,pp['plot_var'],current_data)
         current_data.var = var
 
@@ -530,8 +547,6 @@ def plotitem1(framesoln, plotitem, current_data, stateno):
 
     # The plot commands using matplotlib:
 
-    plt.hold(True)
-
     if pp['color']:
         pp['kwargs']['color'] = pp['color']
 
@@ -549,6 +564,19 @@ def plotitem1(framesoln, plotitem, current_data, stateno):
                 pobj=plt.fill_between(p_centers,var,var2,pp['fill_where'],**pp['kwargs'])
             else:
                 pobj=plt.fill_between(p_centers,var,var2,**pp['kwargs'])
+
+        elif pp['plot_type'] == '1d_pwconst':
+
+            # should improve this to also work on mapped grid
+            xc_edges = patch.grid.c_nodes[0]
+            medges = len(xc_edges)
+            mcells = medges - 1  # number of grid cells
+            # double up points for pw constant plot
+            xc_edges2 = np.reshape(np.vstack((xc_edges,xc_edges)).T, 
+                (2*medges,))
+            xc_edges2 = xc_edges2[1:-1]  # discard first and last
+            var2 = np.reshape(np.vstack((var,var)).T, (2*mcells,))
+            pobj=plt.plot(xc_edges2,var2,pp['plotstyle'],**pp['kwargs'])
 
         elif pp['plot_type'] == '1d_gauge_trace':
 
@@ -621,10 +649,6 @@ def plotitem2(framesoln, plotitem, current_data, stateno):
 
     """
 
-    import numpy as np
-    from numpy import ma
-    from clawpack.visclaw import colormaps
-
     plotdata = plotitem._plotdata
 
     state = framesoln.states[stateno]
@@ -685,8 +709,6 @@ def plotitem2(framesoln, plotitem, current_data, stateno):
         X_center, Y_center = xc_centers, yc_centers
         X_edge, Y_edge = xc_edges, yc_edges
 
-    plt.hold(True)
-
     if ma.isMaskedArray(var):
         # If var is a masked array: plotting should work ok unless all
         # values are masked, in which case pcolor complains and there's
@@ -734,7 +756,6 @@ def plotitem2(framesoln, plotitem, current_data, stateno):
                 pp['imshow_cmin'] = np.min(var)
             if pp['imshow_cmax'] in ['auto',None]:
                 pp['imshow_cmax'] = np.max(var)
-            from matplotlib.colors import Normalize
             color_norm = Normalize(pp['imshow_cmin'],pp['imshow_cmax'],clip=True)
 
             xylimits = (X_edge[0,0],X_edge[-1,-1],Y_edge[0,0],Y_edge[-1,-1])
@@ -777,8 +798,6 @@ def plotitem2(framesoln, plotitem, current_data, stateno):
         elif pp['patch_bgcolor'] is not 'w':
             pobj = pc_mth(X_edge, Y_edge, np.zeros(var.shape), \
                     cmap=pp['patch_bgcolormap'], edgecolors='None')
-        plt.hold(True)
-
 
         if pp['plot_type'] == '2d_contour':
             # create the contour command:
@@ -1046,12 +1065,7 @@ def printframes(plotdata=None, verbose=True):
 
     If plotdata.setplot is a function then this function will be used.
     """
-
-    import glob
-    from clawpack.visclaw.data import ClawPlotData
     from clawpack.visclaw import plotpages
-
-
 
     if 'matplotlib' not in sys.modules:
         print('*** Error: matplotlib not found, no plots will be done')
@@ -1160,7 +1174,6 @@ def printframes(plotdata=None, verbose=True):
     fortfile = {}
     frametimes = {}
 
-    import glob
     for file in glob.glob('fort.q*'):
         frameno = int(file[6:])
         fortfile[frameno] = file
@@ -1393,8 +1406,6 @@ def only_most_recent(framenos,outdir='.',verbose=True):
     Returns the filtered list.
     """
 
-    import glob,time,os
-
     startdir = os.getcwd()
     if outdir != '.':
         try:
@@ -1462,8 +1473,6 @@ def call_setplot(setplot, plotdata, verbose=True):
     If setplot is a string, setplot function is in module named by string.
     Otherwise assume setplot is a function.
     """
-    import types
-
     # This is a bit of a hack to make sure that we still handle the
     # setplot == None case, we may want to deprecate this and require
     # an argument here
@@ -1516,7 +1525,6 @@ def call_setplot(setplot, plotdata, verbose=True):
             print("Would you like to use clawpack.visclaw.setplot_default() instead [Y/n]?")
             use_default = input()
             if (use_default == "") or ("Y" in use_default.capitalize()):
-                from clawpack.visclaw import setplot_default
                 setplot = setplot_default.setplot
             else:
                 sys.exit(1)
@@ -1574,8 +1582,6 @@ def errors_2d_vs_1d(solution,reference,var_2d,var_1d,map_2d_to_1d):
           xs, qs = map_2d_to_1d(xcenter, ycenter, q)
     """
 
-    from numpy import interp
-
     t = solution.t
     xs = {}
     qs = {}
@@ -1620,7 +1626,7 @@ def errors_2d_vs_1d(solution,reference,var_2d,var_1d,map_2d_to_1d):
                 print('*** Error applying function var_1d')
                 return
 
-        qint1 = interp(xs1, xref, qref)
+        qint1 = np.interp(xs1, xref, qref)
 
         xs[stateno] = xs1
         qs[stateno] = qs1
